@@ -1,5 +1,8 @@
 # AI Card Organizer
 
+<img width="1920" height="1008" alt="image" src="https://github.com/user-attachments/assets/affcb971-62d3-4dda-8ccd-8e963a3d42f0" />
+
+
 A desktop application for browsing, inspecting, and editing **Tavern V2 character cards** embedded in PNG files. Built with [Tauri](https://tauri.app/) (Rust backend + HTML/CSS/JS frontend).
 
 ---
