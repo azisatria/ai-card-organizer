@@ -1,0 +1,31 @@
+name: 'Tauri App Release'
+
+# This workflow will trigger automatically when you push a new version tag (e.g., v1.0.0)
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-release:
+    permissions:
+      contents: write
+    runs-on: windows-latest 
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build and Create Release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          releaseId: ${{ github.ref_name }}
+          releaseName: 'Release ${{ github.ref_name }}'
+          releaseBody: 'Latest release of the AI Card Organizer. Seamlessly manage, view, and edit your Tavern v2 character cards locally.'
+          releaseDraft: true
+          prerelease: false
