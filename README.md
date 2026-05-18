@@ -138,4 +138,4 @@ Ai-Card-Organizer/
 
 ## License
 
-This project is provided as-is for personal use. No license is specified — feel free to fork and modify for your own needs.
+This project is licensed under the [MIT License](LICENSE). Feel free to fork, modify, and use it for your own needs.
