@@ -1,0 +1,9 @@
+{
+  "name": "ai-card-organizer",
+  "version": "0.1.0",
+  "scripts": {
+    "tauri": "cargo tauri",
+    "dev": "cargo tauri dev",
+    "build": "cargo tauri build"
+  }
+}

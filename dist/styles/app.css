@@ -1,0 +1,7 @@
+// ── Tailwind tag helper ────────────────────────────────────────────────
+// Generated at build-time by @tailwindcss/cli.
+// We declare it here so Vite/CDN consumers get the fully-purged CSS.
+// For the Tauri dev server this file is injected automatically.
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

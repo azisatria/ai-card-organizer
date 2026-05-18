@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Ai Card Organizer</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            surface: '#18181f',
+            surface2: '#1f2029',
+            surface3: '#272832',
+            'sidebar': '#11131a',
+            accent: '#818cf8',
+            'accent-dim': '#4f46e5',
+            gold: '#f59e42',
+          },
+          fontFamily: { mono: ['"JetBrains Mono"','monospace'] },
+        },
+      },
+    };
+  </script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap');
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+      background: #0f1117; color: #dde1f0;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      overflow: hidden; -webkit-font-smoothing: antialiased;
+      display: flex; flex-direction: column;
+    }
+    .main-layout { display: flex; flex: 1; overflow: hidden; min-height: 0; }
+    #sidebar {
+      width: 240px; min-width: 240px;
+      display: flex; flex-direction: column;
+      background: #11131a; border-right: 1px solid rgba(255,255,255,.055);
+      overflow-y: auto; flex-shrink: 0;
+    }
+    #mainArea { flex: 1; min-width: 0; display: flex; flex-direction: column; overflow-y: auto; position: relative; }
+    #mainArea.hidden { display: none !important; }
+    #detailPanel {
+      width: 400px; min-width: 400px;
+      display: none; flex-direction: column;
+      border-left: 1px solid rgba(255,255,255,.06);
+      background: rgba(17,19,26,.97);
+      backdrop-filter: blur(10px);
+      flex-shrink: 0; overflow: hidden;
+    }
+    #detailPanel.panel-open { display: flex; }
+    .book-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(175px, 1fr));
+      gap: 20px; padding: 20px;
+      flex: 1; overflow-y: auto; align-content: start;
+    }
+    .book-card { cursor: pointer; }
+    .book-card .cover-wrap {
+      position: relative; aspect-ratio: 2 / 3;
+      border-radius: 6px; overflow: hidden; background: #1e1f2b;
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .book-card img {
+      width: 100%; height: 100%; object-fit: cover; display: block;
+      transition: transform .35s cubic-bezier(.25,.46,.45,.94);
+    }
+    .book-card:hover img { transform: scale(1.08); }
+    .book-card:hover .cover-wrap { outline: 2px solid rgba(129,140,248,.45); outline-offset: 2px; }
+    .book-card .name-overlay {
+      position: absolute; bottom: 0; left: 0; right: 0;
+      padding: 28px 8px 8px;
+      background: linear-gradient(transparent, rgba(0,0,0,.88));
+      transform: translateY(105%);
+      transition: transform .28s cubic-bezier(.25,.46,.45,.94);
+    }
+    .book-card:hover .name-overlay { transform: translateY(0); }
+    .book-card .cover-wrap::after {
+      content: ''; position: absolute; inset: 0;
+      box-shadow: inset -3px 0 6px rgba(0,0,0,.35), inset 1px 0 2px rgba(255,255,255,.04);
+      pointer-events: none; border-radius: inherit;
+    }
+    .tree-item {
+      display: flex; align-items: center; gap: 5px;
+      padding: 3px 10px; border-radius: 5px;
+      cursor: pointer; font-size: 0.75rem;
+      color: #7b82a8; transition: background .15s, color .15s;
+      user-select: none;
+    }
+    .tree-item:hover { background: rgba(129,140,248,.07); color: #dde1f0; }
+    .tree-item.active { background: rgba(129,140,248,.13); color: #818cf8; font-weight: 500; }
+    .tag-pill {
+      font-size: 11px; padding: 2px 8px 2px 5px; border-radius: 20px; cursor: pointer;
+      transition: opacity .15s, transform .12s; white-space: nowrap;
+      display: inline-flex; align-items: center; gap: 4px;
+    }
+    .tag-pill:hover { opacity: .8; transform: scale(1.04); }
+    .search-wrap input {
+      width: 100%; background: rgba(255,255,255,.05);
+      border: 1px solid rgba(255,255,255,.08); border-radius: 8px;
+      padding: 7px 12px 7px 34px; font-size: 0.8rem; outline: none;
+      transition: border-color .2s, background .2s; color: #dde1f0;
+    }
+    .search-wrap input:focus { border-color: rgba(129,140,248,.45); background: rgba(255,255,255,.07); }
+    .search-wrap input::placeholder { color: #404568; }
+    .inspector-toolbar {
+      flex-shrink: 0; display: flex; align-items: center; gap: 6px;
+      padding: 8px 14px; border-bottom: 1px solid rgba(255,255,255,.05);
+      background: rgba(0,0,0,.15);
+    }
+    .field-row { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; padding: 4px 0; }
+    .field-row.is-long { flex-direction: column; }
+    .edit-textarea {
+      width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px; padding: 6px 9px; font-size: 0.75rem; resize: vertical; outline: none;
+      color: #dde1f0; line-height: 1.55; font-family: inherit; transition: border-color .2s, background .2s;
+    }
+    .edit-textarea:focus { border-color: rgba(129,140,248,.4); background: rgba(255,255,255,.07); }
+    .edit-input {
+      width: 100%; background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.1);
+      border-radius: 6px; padding: 5px 9px; font-size: 0.75rem; outline: none; color: #dde1f0;
+      transition: border-color .2s, background .2s;
+    }
+    .edit-input:focus { border-color: rgba(129,140,248,.4); background: rgba(255,255,255,.07); }
+    .edit-label { color: #7b82a8; font-size: 0.72rem; font-weight: 500; margin-bottom: 2px; display: flex; align-items: center; gap: 4px; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spinner {
+      width: 13px; height: 13px; border: 2px solid rgba(129,140,248,.3);
+      border-top-color: #818cf8; border-radius: 50%; animation: spin 0.7s linear infinite; display: inline-block;
+    }
+    #toast {
+      position: fixed; bottom: 20px; right: 20px; z-index: 999;
+      display: flex; align-items: center; gap: 8px; border-radius: 9px;
+      padding: 9px 14px; font-size: 0.78rem; box-shadow: 0 6px 24px rgba(0,0,0,.45);
+      transition: opacity .25s, transform .25s; pointer-events: none; opacity: 0; transform: translateY(8px);
+    }
+    #toast.show { opacity: 1; transform: translateY(0); }
+    #toast.ok   { background: #0f2e1a; border: 1px solid #22c55e40; color: #86efac; }
+    #toast.err  { background: #2e0f0f; border: 1px solid #ef444440; color: #f87171; }
+    .skel { background: linear-gradient(90deg, #1c1d28 25%, #262838 50%, #1c1d28 75%); background-size: 200% 100%; animation: shimmer 1.6s ease infinite; border-radius: 6px; }
+    @keyframes shimmer { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+    .hidden { display: none !important; }
+
+    /* ═══ FULL PAGES ═══ */
+    .page-view {
+      display: none; flex: 1; overflow-y: auto; flex-direction: column; min-height: 0;
+    }
+    .page-view.active { display: flex; }
+    .page-cover {
+      width: 100%; max-height: 340px; object-fit: cover; object-position: top;
+      border-radius: 0 0 12px 12px;
+    }
+    .detail-layout {
+      display: flex; gap: 20px; align-items: flex-start;
+    }
+    .detail-sidebar {
+      width: 280px; min-width: 280px; display: flex; flex-direction: column; gap: 12px;
+    }
+    .detail-main {
+      flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px;
+    }
+    .detail-cover-img {
+      width: 100%; border-radius: 8px; background: #1e1f2b;
+      aspect-ratio: 2/3; object-fit: contain;
+    }
+    .detail-meta {
+      display: flex; flex-direction: column; gap: 4px; padding: 10px;
+      background: rgba(255,255,255,.03); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .detail-meta-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .detail-meta-label { font-size: 0.65rem; color: #666; font-weight: 600; text-transform: uppercase; }
+    .detail-meta-value { font-size: 0.72rem; color: #ccc; text-align: right; }
+    .detail-tags {
+      display: flex; flex-wrap: wrap; gap: 4px; padding: 10px;
+      background: rgba(255,255,255,.03); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    @media (max-width: 768px) {
+      .detail-layout { flex-direction: column; }
+      .detail-sidebar { width: 100%; min-width: 0; }
+      .detail-cover-img { max-height: 400px; }
+    }
+    .page-section {
+      border: 1px solid rgba(255,255,255,.05); border-radius: 8px;
+      margin-bottom: 8px; overflow: hidden;
+    }
+    .page-section-header {
+      display: flex; align-items: center; gap: 8px; padding: 10px 14px;
+      cursor: pointer; user-select: none; font-size: 0.72rem; font-weight: 600;
+      color: #888; background: rgba(255,255,255,.02);
+    }
+    .page-section-header:hover { background: rgba(255,255,255,.04); }
+    .page-section-body { padding: 12px 14px; display: none; flex-direction: column; gap: 6px; }
+    .page-section-body.open { display: flex; }
+    .page-field-label { font-size: 0.65rem; color: #666; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
+    .page-field-value { font-size: 0.78rem; color: #ccc; line-height: 1.6; white-space: pre-wrap; word-break: break-word; }
+    .page-bar-track { width: 100%; height: 6px; background: rgba(255,255,255,.06); border-radius: 3px; overflow: hidden; }
+    .page-bar-fill { height: 100%; background: linear-gradient(90deg,#6366f1,#a78bfa); border-radius: 3px; }
+
+    /* ═══ EDIT PAGE LAYOUT ═══ */
+    .edit-layout {
+      display: flex; gap: 20px; align-items: flex-start; flex: 1; min-height: 0;
+    }
+    .edit-sidebar {
+      width: 280px; min-width: 280px; display: flex; flex-direction: column; gap: 12px;
+      position: sticky; top: 0; align-self: flex-start;
+    }
+    .edit-main {
+      flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 8px;
+    }
+    .edit-cover-wrap {
+      position: relative; border-radius: 8px; overflow: hidden;
+      background: #1e1f2b; aspect-ratio: 2/3; cursor: pointer;
+      border: 2px solid rgba(129,140,248,.15);
+      transition: border-color .2s, box-shadow .2s;
+    }
+    .edit-cover-wrap:hover {
+      border-color: rgba(129,140,248,.5);
+      box-shadow: 0 0 20px rgba(129,140,248,.15);
+    }
+    .edit-cover-img {
+      width: 100%; height: 100%; object-fit: contain;
+    }
+    .edit-cover-overlay {
+      position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: rgba(0,0,0,.5); opacity: 0; transition: opacity .2s;
+      flex-direction: column; gap: 6px;
+    }
+    .edit-cover-wrap:hover .edit-cover-overlay { opacity: 1; }
+    .edit-cover-overlay svg { width: 28px; height: 28px; color: #fff; }
+    .edit-cover-overlay span { font-size: 0.7rem; color: #fff; font-weight: 500; }
+    .edit-meta {
+      display: flex; flex-direction: column; gap: 4px; padding: 10px;
+      background: rgba(255,255,255,.03); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    .edit-meta-row {
+      display: flex; justify-content: space-between; align-items: center; gap: 8px;
+    }
+    .edit-meta-label { font-size: 0.65rem; color: #666; font-weight: 600; text-transform: uppercase; }
+    .edit-meta-value { font-size: 0.72rem; color: #ccc; text-align: right; }
+    .edit-tags {
+      display: flex; flex-wrap: wrap; gap: 4px; padding: 10px;
+      background: rgba(255,255,255,.03); border-radius: 8px;
+      border: 1px solid rgba(255,255,255,.05);
+    }
+    @media (max-width: 768px) {
+      .edit-layout { flex-direction: column; }
+      .edit-sidebar { width: 100%; min-width: 0; position: static; }
+      .edit-cover-wrap { max-height: 400px; }
+    }
+
+    /* ═══ TOKEN STATS ═══ */
+    .token-stats {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      padding: 8px 12px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 8px;
+      border: 1px solid rgba(255,255,255,0.07);
+      margin-bottom: 12px;
+    }
+    .token-label {
+      font-size: 0.65rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: #666;
+    }
+    .token-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .token-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.78rem;
+      color: #aaa;
+    }
+    .token-item strong {
+      font-size: 0.85rem;
+      color: #e2e8f0;
+    }
+    .token-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+    .token-divider {
+      color: #444;
+    }
+
+    /* ═══ IMPORT MODAL ═══ */
+    .modal-overlay {
+      position: fixed; inset: 0; background: rgba(0,0,0,.7);
+      display: flex; align-items: center; justify-content: center; z-index: 1000;
+      backdrop-filter: blur(4px); animation: fadeIn .2s ease;
+    }
+    .modal-overlay.hidden { display: none; }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+    .modal-content {
+      background: #1e1f2b; border: 1px solid rgba(255,255,255,.08); border-radius: 12px;
+      width: 440px; max-width: 92vw; max-height: 90vh; overflow-y: auto;
+      box-shadow: 0 20px 60px rgba(0,0,0,.6); animation: slideDown .2s ease;
+    }
+    @keyframes slideDown { from { opacity:0; transform:translateY(-12px); } to { opacity:1; transform:translateY(0); } }
+    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 16px 20px; border-bottom: 1px solid rgba(255,255,255,.06); }
+    .modal-header h3 { font-size: 0.9rem; color: #818cf8; }
+    .modal-close { background: none; border: none; color: #888; font-size: 1.5rem; cursor: pointer; line-height: 1; }
+    .modal-close:hover { color: #fff; }
+    .modal-body { padding: 20px; }
+    .drop-zone {
+      border: 2px dashed rgba(129,140,248,.3); border-radius: 10px;
+      padding: 30px 20px; text-align: center; transition: border-color .2s, background .2s; background: rgba(255,255,255,.02);
+    }
+    .drop-zone.drag-over { border-color: #818cf8; background: rgba(129,140,248,.06); }
+    .drop-zone p { margin: 4px 0; }
+    .btn {
+      display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 6px;
+      font-size: 0.75rem; font-weight: 600; cursor: pointer; border: none; transition: all .15s;
+    }
+    .btn-primary { background: #6366f1; color: #fff; }
+    .btn-primary:hover { background: #818cf8; }
+    .btn-sm { padding: 4px 10px; font-size: 0.7rem; }
+    ::-webkit-scrollbar { width: 5px; height: 5px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #2e3145; border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3e4258; }
+
+    /* ═══ NSFW BLUR ═══ */
+    html.nsfw-blur .cover-wrap img,
+    html.nsfw-blur .edit-cover-img,
+    html.nsfw-blur .detail-cover-img,
+    html.nsfw-blur #inspectorCover img {
+      filter: blur(18px) !important;
+      transition: filter 0.2s ease;
+    }
+    html.nsfw-blur .cover-wrap:hover img,
+    html.nsfw-blur .edit-cover-wrap:hover .edit-cover-img,
+    html.nsfw-blur .detail-cover-img:hover,
+    html.nsfw-blur #inspectorCover:hover img {
+      filter: blur(4px) !important;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ═══ TOAST ═══ -->
+<div id="toast"><span id="toastMsg"></span></div>
+
+<!-- ═══ IMPORT MODAL ═══ -->
+<div id="importModal" class="modal-overlay hidden">
+  <div class="modal-content">
+    <div class="modal-header">
+      <h3>📥 Import Character</h3>
+      <button id="importModalClose" class="modal-close">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div id="importDropZone" class="drop-zone">
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#555" stroke-width="1.5" style="margin:0 auto 12px;display:block;">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="17 8 12 3 7 8"/>
+          <line x1="12" y1="3" x2="12" y2="15"/>
+        </svg>
+        <p style="color:#aaa">Drag & drop PNG or JSON files</p>
+        <p style="color:#666;font-size:0.75rem;margin-top:4px">or</p>
+        <button id="importFileBtn" class="btn btn-primary btn-sm" style="margin-top:8px">Choose File</button>
+      </div>
+      <input id="importFileInput" type="file" accept=".png,.json" class="hidden">
+      <div id="importStatus" style="margin-top:10px;font-size:0.75rem;min-height:1.2em"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ TOP BAR ═══ -->
+<header style="display:flex;align-items:center;padding:8px 16px;gap:12px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(17,19,26,.92);backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);flex-shrink:0;">
+  <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
+    <div style="width:32px;height:32px;border-radius:8px;background:#4f46e520;display:flex;align-items:center;justify-content:center;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#818cf8" stroke-width="2.2">
+        <rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/>
+        <rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>
+      </svg>
+    </div>
+    <span style="font-size:0.85rem;font-weight:700;color:#818cf8;letter-spacing:-0.02em;">Ai Card Organizer</span>
+  </div>
+  <div id="searchWrap" style="display:none;flex:1;max-width:360px;position:relative;">
+    <svg style="position:absolute;left:10px;top:50%;transform:translateY(-50%);width:14px;height:14px;pointer-events:none;color:#404568" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4-4"/></svg>
+    <input id="searchInput" type="text" placeholder="Search name or tag…" autocomplete="off" spellcheck="false"
+           style="width:100%;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 10px 7px 32px;font-size:0.8rem;color:#dde1f0;outline:none;">
+  </div>
+  <select id="sortSelect" title="Sort cards" style="background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08);border-radius:8px;padding:7px 10px;font-size:0.75rem;color:#aaa;outline:none;cursor:pointer;flex-shrink:0;">
+    <option value="default">Folder Order</option>
+    <option value="name_asc">Name A–Z</option>
+    <option value="name_desc">Name Z–A</option>
+    <option value="tokens_desc">Most Tokens</option>
+    <option value="tokens_asc">Fewest Tokens</option>
+    <option value="tags">Most Tags</option>
+    <option value="creator">Creator</option>
+  </select>
+  <div style="display:flex;align-items:center;gap:6px;flex-shrink:0;">
+    <button id="btnPickDir" style="display:flex;align-items:center;gap:6px;background:#4f46e520;color:#818cf8;font-size:0.72rem;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;border:none;transition:all .15s;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      <span>Select Folder</span>
+    </button>
+    <button id="btnImport" style="display:none;align-items:center;gap:6px;background:#ffffff0a;color:#aaa;font-size:0.72rem;padding:6px 10px;border-radius:8px;cursor:pointer;border:none;">
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    </button>
+    <button id="btnBlur" title="Toggle NSFW blur" style="display:flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:8px;cursor:pointer;border:none;background:rgba(255,255,255,.05);color:#888;transition:all .15s;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+        <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+        <line x1="1" y1="1" x2="23" y2="23"/>
+      </svg>
+    </button>
+  </div>
+</header>
+
+<!-- ═══ MAIN ═══ -->
+<div class="main-layout">
+
+  <!-- LEFT SIDEBAR -->
+  <aside id="sidebar">
+    <div style="padding:16px 16px 8px;">
+      <p style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#454a65;margin-bottom:10px;">📁 Library</p>
+    </div>
+    <div id="folderTree" style="padding:0 12px;margin-bottom:8px;">
+      <div class="tree-item" data-path="">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        <span id="treeRootLabel">Root Folder</span>
+        <span id="treeCount" style="margin-left:auto;font-size:0.6rem;padding:1px 6px;border-radius:10px;background:rgba(255,255,255,.05);color:#5a628a;">—</span>
+      </div>
+    </div>
+    <div style="margin:0 12px;height:1px;background:rgba(255,255,255,.05);margin-bottom:10px;"></div>
+    <div style="padding:0 12px 8px;">
+      <p style="font-size:0.62rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;color:#454a65;margin-bottom:10px;">🏷️ Tags</p>
+    </div>
+    <div id="tagCloud" style="padding:0 12px;display:flex;flex-wrap:wrap;gap:4px;padding-bottom:12px;"></div>
+  </aside>
+
+  <!-- CENTER -->
+  <main id="mainArea" style="flex:1;min-width:0;display:flex;flex-direction:column;overflow-y:auto;position:relative;">
+
+    <!-- Empty state -->
+    <div id="emptyState" style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;text-align:center;padding:40px 20px;">
+      <div style="width:72px;height:72px;border-radius:16px;background:#1e1f2b;display:flex;align-items:center;justify-content:center;margin-bottom:16px;box-shadow:inset 0 0 20px rgba(0,0,0,.4);">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#33394e" stroke-width="1.5">
+          <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+        </svg>
+      </div>
+      <p style="color:#888;font-size:0.85rem;margin-bottom:4px;">No folder selected yet</p>
+      <p style="color:#555;font-size:0.72rem;">Click <em style="color:#818cf8;font-style:normal;">Select Folder</em> to scan PNG cards</p>
+      <div style="margin-top:18px;display:flex;gap:10px;">
+        <button id="emptyPickDir" style="background:#4f46e520;color:#818cf8;font-size:0.72rem;font-weight:600;padding:7px 16px;border-radius:8px;cursor:pointer;border:none;">Select Folder</button>
+      </div>
+    </div>
+
+    <!-- Loading state -->
+    <div id="loadingState" class="hidden" style="display:none;flex-direction:column;align-items:center;justify-content:center;flex:1;position:absolute;inset:0;">
+      <div style="width:50px;height:60px;border-radius:8px;background:linear-gradient(90deg,#1c1d28 25%,#262838 50%,#1c1d28 75%);background-size:200% 100%;animation:shimmer 1.6s ease infinite;margin-bottom:10px;"></div>
+      <p style="color:#666;font-size:0.72rem;">Scanning folder…</p>
+    </div>
+
+    <!-- Grid -->
+    <div id="bookGrid" class="book-grid hidden"></div>
+  </main>
+
+  <!-- INSPECTOR PANEL -->
+  <aside id="detailPanel">
+    <div class="inspector-toolbar">
+      <button id="btnCloseDetail" title="Close (Esc)" style="background:none;border:none;color:#666;cursor:pointer;padding:4px;border-radius:4px;display:flex;align-items:center;">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18"/><path d="M6 6l12 12"/></svg>
+      </button>
+      <span id="panelTitle" style="font-size:0.62rem;color:#666;font-weight:600;text-transform:uppercase;letter-spacing:0.06em;flex:1;">Overview</span>
+    </div>
+    <div id="viewContent" style="flex:1;overflow-y:auto;padding:12px 14px;display:flex;flex-direction:column;">
+      <div id="inspectorCover" style="aspect-ratio:2/3;max-height:240px;background:#1e1f2b;position:relative;overflow:hidden;border-radius:8px;">
+        <div style="position:absolute;inset:0;display:flex;align-items:flex-end;padding:12px;pointer-events:none;background:linear-gradient(transparent,rgba(0,0,0,.6) 100%);">
+          <div>
+            <p id="viewName" style="font-size:1.1rem;font-weight:700;color:#fff;text-shadow:0 1px 8px rgba(0,0,0,.6);">—</p>
+            <p id="viewCreator" style="font-size:0.65rem;color:rgba(255,255,255,.6);margin-top:2px;"></p>
+          </div>
+        </div>
+      </div>
+      <div id="viewFields" style="display:flex;flex-direction:column;gap:8px;margin-top:12px;flex:1;overflow-y:auto;"></div>
+      <div id="overviewActions" style="display:flex;gap:8px;margin-top:12px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
+        <button id="btnViewDetail" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(129,140,248,.12);color:#818cf8;font-size:0.72rem;font-weight:600;padding:8px;border-radius:6px;cursor:pointer;border:none;transition:background .15s;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          View Detail
+        </button>
+        <button id="btnEditCard" style="flex:1;display:flex;align-items:center;justify-content:center;gap:6px;background:rgba(99,102,241,.2);color:#a5b4fc;font-size:0.72rem;font-weight:600;padding:8px;border-radius:6px;cursor:pointer;border:none;transition:background .15s;">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+      </div>
+      <div style="margin-top:8px;font-size:0.6rem;color:#555;display:flex;flex-direction:column;gap:2px;">
+        <span class="truncate" id="inspectorFile">—</span>
+        <span class="truncate" id="inspectorPath" style="color:#444;">—</span>
+        <span id="inspectorStatus" style="font-size:0.55rem;color:#444;"></span>
+      </div>
+    </div>
+  </aside>
+
+  <!-- ═══ FULL PAGE: VIEW ═══ -->
+    <div id="pageView" class="page-view">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(17,19,26,.6);flex-shrink:0;">
+        <button id="btnBackFromView" style="display:flex;align-items:center;gap:4px;background:none;border:none;color:#888;cursor:pointer;font-size:0.72rem;padding:4px 8px;border-radius:4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+           Back
+        </button>
+        <span style="font-size:0.65rem;color:#666;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Card Detail</span>
+        <button id="btnEditFromView" style="margin-left:auto;display:flex;align-items:center;gap:6px;background:rgba(99,102,241,.2);color:#a5b4fc;font-size:0.72rem;font-weight:600;padding:5px 12px;border-radius:6px;cursor:pointer;border:none;">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          Edit
+        </button>
+      </div>
+      <div id="detailTokens" style="padding:0 20px;margin-top:12px;"></div>
+      <div id="pageViewContent" style="flex:1;overflow-y:auto;padding:16px 20px;"></div>
+    </div>
+
+  <!-- ═══ FULL PAGE: EDIT ═══ -->
+    <div id="pageEdit" class="page-view">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 20px;border-bottom:1px solid rgba(255,255,255,.05);background:rgba(17,19,26,.6);flex-shrink:0;">
+        <button id="btnBackFromEdit" style="display:flex;align-items:center;gap:4px;background:none;border:none;color:#888;cursor:pointer;font-size:0.72rem;padding:4px 8px;border-radius:4px;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+           Back
+        </button>
+        <span id="pageEditTitle" style="font-size:0.65rem;color:#666;text-transform:uppercase;letter-spacing:0.06em;font-weight:600;">Edit Card</span>
+        <div style="margin-left:auto;display:flex;gap:8px;">
+          <button id="btnCancelEditPage" style="display:flex;align-items:center;gap:4px;color:#888;font-size:0.72rem;padding:5px 12px;border-radius:6px;cursor:pointer;background:none;border:1px solid rgba(255,255,255,.08);">
+            Cancel
+          </button>
+          <button id="btnSaveEditPage" style="display:flex;align-items:center;gap:6px;background:#4f46e5;color:#fff;font-size:0.72rem;padding:5px 14px;border-radius:6px;cursor:pointer;border:none;font-weight:600;">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+            Save
+          </button>
+        </div>
+      </div>
+      <div id="editTokens" style="padding:0 20px;margin-top:12px;"></div>
+      <div id="pageEditContent" style="flex:1;overflow-y:auto;padding:16px 20px;display:flex;flex-direction:column;gap:8px;"></div>
+    </div>
+</div>
+
+<script type="module" src="./app.js"></script>
+</body>
+</html>
