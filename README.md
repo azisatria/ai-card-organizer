@@ -21,6 +21,13 @@ A desktop application for browsing, inspecting, and editing **Tavern V2 characte
 
 ---
 
+## Download
+
+Pre-built Windows installers are available on the Releases page. Download the latest .exe (NSIS) or .msi installer — no Rust or Node.js required.
+
+	
+---
+
 ## Background
 
 I found it surprisingly difficult to organize character cards once the collection grew past 100 — and even harder to figure out which cards were unused or outdated. This app was born out of that frustration.
