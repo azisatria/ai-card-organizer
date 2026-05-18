@@ -21,14 +21,6 @@ A desktop application for browsing, inspecting, and editing **Tavern V2 characte
 
 ---
 
-## Download
-
-Pre-built Windows installers are available on the [Releases](https://github.com/yourusername/ai-card-organizer/releases) page. Download the latest `.exe` (NSIS) or `.msi` installer — no Rust or Node.js required.
-
-> **Note:** Releases are published as drafts via GitHub Actions when a new version tag (e.g. `v1.0.0`) is pushed. Check the Releases tab for the latest build.
-
----
-
 ## Background
 
 I found it surprisingly difficult to organize character cards once the collection grew past 100 — and even harder to figure out which cards were unused or outdated. This app was born out of that frustration.
